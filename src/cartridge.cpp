@@ -105,7 +105,7 @@ static const std::unordered_map<uint8_t, std::string> CARTRIDGE_TYPES = {
 };
 
 std::string Cartridge::getPublisherName() const {
-    auto it = NEW_LICENSE_CODES.find(header.newLicenseCode);
+    auto it = NEW_LICENSE_CODES.find(header.oldLicenseCode);
     if (it != NEW_LICENSE_CODES.end()) {
         return it->second;
     }
@@ -170,7 +170,7 @@ bool Cartridge::loadFromFile(const std::string& romPath) {
     std::cout << "\tRAM Size : " << std::hex << std::uppercase << std::setw(2) 
               << std::setfill('0') << static_cast<int>(header.ramSize) << "\n";
     std::cout << "\tLIC Code : " << std::hex << std::uppercase << std::setw(2) 
-              << std::setfill('0') << static_cast<int>(header.newLicenseCode) 
+              << std::setfill('0') << static_cast<int>(header.oldLicenseCode) 
               << " (" << getPublisherName() << ")\n";
     std::cout << "\tROM Vers : " << std::hex << std::uppercase << std::setw(2) 
               << std::setfill('0') << static_cast<int>(header.versionNumber) << "\n";
@@ -183,7 +183,7 @@ bool Cartridge::loadFromFile(const std::string& romPath) {
 
     std::cout << "\tChecksum : " << std::hex << std::uppercase << std::setw(2) 
               << std::setfill('0') << static_cast<int>(header.headerChecksum) 
-              << " (" << ((x & 0xFF) ? "PASSED" : "FAILED") << ")\n";
+              << " (" << ((x & 0xFF) == header.headerChecksum ? "PASSED" : "FAILED") << ")\n";
 
     return true;
 }
