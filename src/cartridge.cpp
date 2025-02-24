@@ -121,14 +121,11 @@ std::string Cartridge::getCartridgeTypeName() const {
 }
 
 std::uint32_t Cartridge::getROMSize() const {
-    // Formula: 32 KB * (1 << value)
-    return 32768u * (1u << header.romSize);
+    return rom.size();
 }
 
 Cartridge::Cartridge(const std::string& romPath) {
-    if (!loadFromFile(romPath)) {
-        throw std::runtime_error("Failed to load ROM");
-    }
+    loadFromFile(romPath);
 }
 
 bool Cartridge::loadFromFile(const std::string& romPath) {
@@ -186,6 +183,24 @@ bool Cartridge::loadFromFile(const std::string& romPath) {
               << " (" << ((x & 0xFF) == header.headerChecksum ? "PASSED" : "FAILED") << ")\n";
 
     return true;
+}
+
+uint8_t Cartridge::read(uint16_t addr) const {
+    // Simple ROM reading implementation
+    if (addr < rom.size()) {
+        return rom[addr];
+    }
+    return 0xFF;  // Return 0xFF for unmapped memory
+}
+
+void Cartridge::write(uint16_t addr, uint8_t value) {
+    // For now, just handle RAM writes if we have RAM
+    if (addr >= 0xA000 && addr <= 0xBFFF && ramEnabled) {
+        if (ram.size() > (addr - 0xA000)) {
+            ram[addr - 0xA000] = value;
+        }
+    }
+    // ROM writes might be used for MBC control - implement later
 }
 
 

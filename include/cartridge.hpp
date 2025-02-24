@@ -34,6 +34,8 @@ class Cartridge {
         std::string getCartridgeTypeName() const;
 
         uint32_t getROMSize() const;
+
+        explicit Cartridge(const std::vector<uint8_t>& rom_data) : rom(rom_data) {}
     private:
         CartridgeHeader header;
         std::vector<uint8_t> rom;
