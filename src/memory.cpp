@@ -88,3 +88,14 @@ void MemoryBus::write(uint16_t addr, uint8_t value) {
         ie_register = value;
     }
 }
+
+void MemoryBus::write16(uint16_t address, uint16_t value) {
+    // Write in little-endian format (low byte first)
+    write(address, value & 0xFF);
+    write(address + 1, value >> 8);
+}
+
+uint16_t MemoryBus::read16(uint16_t address) {
+    // Read in little-endian format
+    return read(address) | (read(address + 1) << 8);
+}

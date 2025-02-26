@@ -80,4 +80,62 @@ private:
     void fetch_instruction();  // Fetch next instruction
     void fetch_adress(); // Fetch the adress data
     void execute(); // Execute the instruction
+
+    struct InstructionData {
+        uint16_t immediate_value = 0;  // For immediate values and addresses
+    } current_instruction_data;
+
+
+
+    // Helper methods for register access
+    uint8_t getRegister8Bit(Instructions::RegType reg);
+    void setRegister8Bit(Instructions::RegType reg, uint8_t value);
+    uint16_t getRegister16Bit(Instructions::RegType reg);
+    void setRegister16Bit(Instructions::RegType reg, uint16_t value);
+    bool isRegister16Bit(Instructions::RegType reg);
+
+    void executeLD();
+    void executeINC();
+    void executeDEC();
+    void executeADD();
+    void executeSUB();
+    void executeAND();
+    void executeOR();
+    void executeXOR();
+    void executeJP();
+    void executeJR();
+    void executeCALL();
+    void executeRET();
+    void executePUSH();
+    void executePOP();
+    void executeRLCA();
+    void executeRRCA();
+    void executeRLA();
+    void executeRRA();
+    void executeDAA();
+    void executeCPL();
+    void executeSCF();
+    void executeCCF();
+    void executeHALT();
+    void executeADC();
+    void executeSBC();
+    void executeCP();
+    void executeRETI();
+    void executeLDH();
+    void executeDI();
+    void executeEI();
+    void executeRST();
+    void executeRLC();
+    void executeRRC();
+    void executeRL();
+    void executeRR();
+    void executeSLA();
+    void executeSRA();
+    void executeSWAP();
+    void executeSRL();
+    void executeBIT();
+    void executeRES();
+    void executeSET();
+
+    bool ime = true; // Interrupt Master Enable flag
 };

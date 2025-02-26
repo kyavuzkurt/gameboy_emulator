@@ -28,7 +28,10 @@ public:
         MR_D8,      // Memory (Register) with 8-bit immediate
         MR,         // Memory (Register)
         A16_R,      // 16-bit address to Register
-        R_A16       // Register to 16-bit address
+        R_A16,      // Register to 16-bit address
+        CC_D16,     // Conditional jump/call with 16-bit immediate
+        CC_D8,      // Conditional relative jump with 8-bit immediate
+        CC          // Conditional return
     };
 
     // Register types
@@ -36,7 +39,11 @@ public:
         NONE,
         A, F, B, C, D, E, H, L,
         AF, BC, DE, HL,
-        SP, PC
+        SP, PC,
+        CC_NZ,   // Condition: Not Zero
+        CC_Z,    // Condition: Zero
+        CC_NC,   // Condition: Not Carry
+        CC_C     // Condition: Carry
     };
 
     // Instruction types
@@ -49,7 +56,7 @@ public:
         ADC, SUB, SBC, AND,
         XOR, OR, CP, POP,
         JP, PUSH, RET, CB,
-        CALL, RETI, LDH, JPHL,
+        CALL, RETI, LDH,
         DI, EI, RST, ERR,
         // CB instructions
         RLC, RRC, RL, RR,

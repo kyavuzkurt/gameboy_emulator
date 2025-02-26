@@ -47,7 +47,6 @@ std::string Instructions::get_type_name(Type type) {
         case Type::CALL: return "CALL";
         case Type::RETI: return "RETI";
         case Type::LDH: return "LDH";
-        case Type::JPHL: return "JPHL";
         case Type::DI: return "DI";
         case Type::EI: return "EI";
         case Type::RST: return "RST";
@@ -369,7 +368,7 @@ void Instructions::initialize_instructions() {
     instructions[0xE6] = Instruction(Type::AND, AddrMode::R_D8, RegType::A);
     instructions[0xE7] = Instruction(Type::RST, AddrMode::IMP, RegType::NONE, RegType::NONE, CondType::NONE, 0x20);
     instructions[0xE8] = Instruction(Type::ADD, AddrMode::HL_SPR, RegType::SP);  // ADD SP,r8
-    instructions[0xE9] = Instruction(Type::JPHL);  // JP (HL)
+    instructions[0xE9] = Instruction(Type::JP, AddrMode::R, RegType::HL);  // JP (HL)
     instructions[0xEA] = Instruction(Type::LD, AddrMode::A16_R, RegType::NONE, RegType::A);  // LD (nn),A
     instructions[0xEB] = Instruction(Type::ERR);  // Invalid opcode
     instructions[0xEC] = Instruction(Type::ERR);  // Invalid opcode
