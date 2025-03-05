@@ -80,14 +80,19 @@ public:
         RegType reg2;
         CondType cond;
         uint8_t param;
+        uint8_t cycles;       // Base number of cycles
+        uint8_t alt_cycles;   // Alternative cycle count for conditional instructions
 
         Instruction(Type t = Type::NONE,
                    AddrMode am = AddrMode::IMP,
                    RegType r1 = RegType::NONE,
                    RegType r2 = RegType::NONE,
                    CondType c = CondType::NONE,
-                   uint8_t p = 0)
-            : type(t), addr_mode(am), reg1(r1), reg2(r2), cond(c), param(p) {}
+                   uint8_t p = 0,
+                   uint8_t cyc = 0,
+                   uint8_t alt_cyc = 0)
+            : type(t), addr_mode(am), reg1(r1), reg2(r2), cond(c), param(p), 
+              cycles(cyc), alt_cycles(alt_cyc) {}
     };
 
 public:

@@ -16,10 +16,25 @@ CPU::CPU(MemoryBus& mem) : memory(mem) {
 }
 
 void CPU::tick() {
+    // If we have pending cycles from current instruction, just decrement and return
+    if (pending_cycles > 0) {
+        pending_cycles--;
+        cycles++;
+        return;
+    }
+
+    // Only execute a new instruction if we're not halted or stopped
     if (!halted && !stopped) {
         fetch_instruction();
         fetch_adress();
         execute();
+        
+        // Calculate how many cycles this instruction takes
+        pending_cycles = get_instruction_cycles(current_instruction) - 1; // Subtract 1 because we're counting this cycle
+        cycles++;
+    } else {
+        // When halted or stopped, we still consume a cycle
+        cycles++;
     }
 }
 
@@ -117,6 +132,8 @@ void CPU::execute() {
            registers.af, registers.bc, registers.de, registers.hl);
     
     //Debug section end
+    bool branch_taken = false; // Track if branch instructions actually branch
+    
     // Execute the instruction based on type
     switch (current_instruction->type) {
         case Instructions::Type::NOP:
@@ -165,22 +182,22 @@ void CPU::execute() {
             
         case Instructions::Type::JP:
             // Jump
-            executeJP();
+            branch_taken = executeJP();
             break;
             
         case Instructions::Type::JR:
             // Jump relative
-            executeJR();
+            branch_taken = executeJR();
             break;
             
         case Instructions::Type::CALL:
             // Call subroutine
-            executeCALL();
+            branch_taken = executeCALL();
             break;
             
         case Instructions::Type::RET:
             // Return from subroutine
-            executeRET();
+            branch_taken = executeRET();
             break;
             
         case Instructions::Type::PUSH:
@@ -319,5 +336,121 @@ void CPU::execute() {
             printf("Unimplemented instruction: %s\n", 
                    Instructions::get_type_name(current_instruction->type).c_str());
             break;
+    }
+    
+    // Update the cycle count based on the result of the instruction
+    // For conditional instructions, this ensures we use the right cycle count
+    pending_cycles = get_instruction_cycles(current_instruction, branch_taken) - 1;
+}
+
+// Helper to compute cycles for a given instruction
+uint8_t CPU::get_instruction_cycles(const Instructions::Instruction* instr, bool branch_taken) {
+    // For conditional instructions, use alt_cycles when branch is not taken
+    if (instr->cond != Instructions::CondType::NONE) {
+        return branch_taken ? instr->cycles : instr->alt_cycles;
+    }
+    return instr->cycles;
+}
+
+bool CPU::executeJP() {
+    bool branch_taken = true;
+    bool condition_satisfied = true;
+    
+    // Check condition if this is a conditional jump
+    if (current_instruction->cond != Instructions::CondType::NONE) {
+        condition_satisfied = checkCondition(current_instruction->cond);
+    }
+    
+    if (condition_satisfied) {
+        if (current_instruction->addr_mode == Instructions::AddrMode::R) {
+            // Jump to address in register (only HL is valid here)
+            registers.pc = registers.hl;
+        } else {
+            // Jump to immediate address
+            registers.pc = current_instruction_data.immediate_value;
+        }
+    } else {
+        branch_taken = false;
+    }
+    
+    return branch_taken;
+}
+
+bool CPU::executeJR() {
+    bool branch_taken = true;
+    bool condition_satisfied = true;
+    
+    // Check condition if this is a conditional jump
+    if (current_instruction->cond != Instructions::CondType::NONE) {
+        condition_satisfied = checkCondition(current_instruction->cond);
+    }
+    
+    if (condition_satisfied) {
+        // Relative jump uses signed 8-bit offset
+        int8_t offset = static_cast<int8_t>(current_instruction_data.immediate_value & 0xFF);
+        registers.pc += offset;
+    } else {
+        branch_taken = false;
+    }
+    
+    return branch_taken;
+}
+
+bool CPU::executeCALL() {
+    bool branch_taken = true;
+    bool condition_satisfied = true;
+    
+    // Check condition if this is a conditional call
+    if (current_instruction->cond != Instructions::CondType::NONE) {
+        condition_satisfied = checkCondition(current_instruction->cond);
+    }
+    
+    if (condition_satisfied) {
+        // Push current PC to stack
+        registers.sp -= 2;
+        memory.write16(registers.sp, registers.pc);
+        
+        // Jump to call address
+        registers.pc = current_instruction_data.immediate_value;
+    } else {
+        branch_taken = false;
+    }
+    
+    return branch_taken;
+}
+
+bool CPU::executeRET() {
+    bool branch_taken = true;
+    bool condition_satisfied = true;
+    
+    // Check condition if this is a conditional return
+    if (current_instruction->cond != Instructions::CondType::NONE) {
+        condition_satisfied = checkCondition(current_instruction->cond);
+    }
+    
+    if (condition_satisfied) {
+        // Pop return address from stack
+        registers.pc = memory.read16(registers.sp);
+        registers.sp += 2;
+    } else {
+        branch_taken = false;
+    }
+    
+    return branch_taken;
+}
+
+// Helper to check conditions for conditional instructions
+bool CPU::checkCondition(Instructions::CondType cond) {
+    switch (cond) {
+        case Instructions::CondType::NZ:
+            return !getFlag(FLAG_Z);
+        case Instructions::CondType::Z:
+            return getFlag(FLAG_Z);
+        case Instructions::CondType::NC:
+            return !getFlag(FLAG_C);
+        case Instructions::CondType::C:
+            return getFlag(FLAG_C);
+        default:
+            return true;
     }
 }

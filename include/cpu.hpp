@@ -11,6 +11,12 @@ public:
     
     uint16_t getPC() const { return registers.pc; } 
     
+    // Get the number of cycles that have elapsed
+    uint64_t getCycles() const { return cycles; }
+    
+    // Reset cycle count (useful for timing specific events)
+    void resetCycles() { cycles = 0; }
+    
 private:
     // Register structure
     struct Registers {
@@ -64,6 +70,10 @@ private:
         else registers.f &= ~flag;
     }
     
+    // Timing related fields
+    uint64_t cycles = 0;         // Total cycles elapsed
+    uint8_t pending_cycles = 0;  // Cycles remaining for current instruction
+    
     MemoryBus& memory;
     uint8_t current_opcode;
     
@@ -94,6 +104,13 @@ private:
     void setRegister16Bit(Instructions::RegType reg, uint16_t value);
     bool isRegister16Bit(Instructions::RegType reg);
 
+    // Modified execution methods to return branch taken status
+    bool executeJP();
+    bool executeJR();
+    bool executeCALL();
+    bool executeRET();
+    
+    // Other execute methods (unchanged)
     void executeLD();
     void executeINC();
     void executeDEC();
@@ -102,10 +119,6 @@ private:
     void executeAND();
     void executeOR();
     void executeXOR();
-    void executeJP();
-    void executeJR();
-    void executeCALL();
-    void executeRET();
     void executePUSH();
     void executePOP();
     void executeRLCA();
@@ -138,4 +151,10 @@ private:
     void executeSET();
 
     bool ime = true; // Interrupt Master Enable flag
+
+    // Helper for computing instruction timing
+    uint8_t get_instruction_cycles(const Instructions::Instruction* instr, bool branch_taken = false);
+    
+    // Helper to check conditions for conditional instructions
+    bool checkCondition(Instructions::CondType cond);
 };

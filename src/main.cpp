@@ -42,6 +42,26 @@ bool cpu_step() {
     }
 }
 
+// New function to handle cycle-accurate timing
+bool system_tick() {
+    // Execute one CPU cycle
+    if (!cpu_step()) {
+        return false;
+    }
+    
+    // Update other components based on CPU cycles
+    // Each component will check the CPU's current cycle count
+    // and update its state accordingly
+    
+    // Example: Update GPU every cycle
+    // gpu->update(cpu->getCycles());
+    
+    // Example: Update timer
+    // timer->update(cpu->getCycles());
+    
+    return true;
+}
+
 int emu_run(int argc, char** argv) {
     if (argc < 2) {
         std::cerr << "Usage: " << argv[0] << " <rom_file>" << std::endl;
@@ -65,6 +85,13 @@ int emu_run(int argc, char** argv) {
     ctx.paused = false;
     ctx.ticks = 0;
 
+    const uint64_t GB_CLOCK_SPEED = 4194304; // GameBoy CPU runs at ~4.19 MHz
+    const uint64_t CYCLES_PER_FRAME = GB_CLOCK_SPEED / 60; // ~69905 cycles per frame at 60 FPS
+    
+    uint64_t frame_cycles = 0;
+    uint64_t last_time = SDL_GetTicks();
+    uint64_t frame_time = 0;
+    
     SDL_Event event;
     while (ctx.running) {
         // Handle SDL events
@@ -91,11 +118,36 @@ int emu_run(int argc, char** argv) {
             continue;
         }
 
-        if (!cpu_step()) {
-            std::cerr << "CPU Stopped" << std::endl;
-            break;
+        // Get current time
+        uint64_t current_time = SDL_GetTicks();
+        frame_time += current_time - last_time;
+        last_time = current_time;
+        
+        // Run CPU cycles for one frame
+        while (frame_cycles < CYCLES_PER_FRAME && ctx.running && !ctx.paused) {
+            if (!system_tick()) {
+                std::cerr << "CPU Stopped" << std::endl;
+                ctx.running = false;
+                break;
+            }
+            
+            frame_cycles++;
         }
-
+        
+        // Reset frame cycle counter
+        if (frame_cycles >= CYCLES_PER_FRAME) {
+            frame_cycles = 0;
+            
+            // Render screen here
+            // ...
+            
+            // Cap to 60 FPS
+            if (frame_time < 16) {
+                SDL_Delay(16 - frame_time);
+            }
+            frame_time = 0;
+        }
+        
         ctx.ticks++;
     }
 

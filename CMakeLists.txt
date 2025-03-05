@@ -14,6 +14,7 @@ add_executable(gameboy-emu
     src/instructions.cpp
     src/cpu_instructions.cpp
     src/cpu_registers.cpp
+    src/gpu.cpp
 )
 
 target_link_libraries(gameboy-emu PRIVATE SDL2::SDL2)
