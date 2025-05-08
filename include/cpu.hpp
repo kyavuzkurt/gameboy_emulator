@@ -7,6 +7,8 @@ class CPU {
 public:
     explicit CPU(MemoryBus& memory);
     
+    void reset();  // Reset CPU to post-boot ROM state
+    
     void tick(); // Execute one CPU cycle
     
     uint16_t getPC() const { return registers.pc; } 
@@ -16,6 +18,17 @@ public:
     
     // Reset cycle count (useful for timing specific events)
     void resetCycles() { cycles = 0; }
+    
+    // Add a debug flag
+    bool debug_output_enabled = false;
+    
+    void setRegisterAF(uint16_t value) { registers.af = value; }
+    void setRegisterBC(uint16_t value) { registers.bc = value; }
+    void setRegisterDE(uint16_t value) { registers.de = value; }
+    void setRegisterHL(uint16_t value) { registers.hl = value; }
+    void setPC(uint16_t value) { registers.pc = value; }
+    void setSP(uint16_t value) { registers.sp = value; }
+    void setIME(bool value) { ime = value; }
     
 private:
     // Register structure
@@ -75,7 +88,7 @@ private:
     uint8_t pending_cycles = 0;  // Cycles remaining for current instruction
     
     MemoryBus& memory;
-    uint8_t current_opcode;
+    uint8_t current_opcode = 0;  // Current executing opcode
     
     // CPU state
     bool halted = false;
@@ -84,7 +97,7 @@ private:
 
     // Instruction handling
     Instructions instructions;  // Add this to store the instruction set
-    const Instructions::Instruction* current_instruction;  // Current instruction being executed
+    const Instructions::Instruction* current_instruction = nullptr;  // Current instruction being executed
     
     // Fetch-decode-execute cycle
     void fetch_instruction();  // Fetch next instruction
@@ -95,7 +108,8 @@ private:
         uint16_t immediate_value = 0;  // For immediate values and addresses
     } current_instruction_data;
 
-
+    // Method for handling interrupts
+    bool handleInterrupts();
 
     // Helper methods for register access
     uint8_t getRegister8Bit(Instructions::RegType reg);
@@ -130,6 +144,7 @@ private:
     void executeSCF();
     void executeCCF();
     void executeHALT();
+    void executeSTOP();
     void executeADC();
     void executeSBC();
     void executeCP();
@@ -151,10 +166,14 @@ private:
     void executeSET();
 
     bool ime = true; // Interrupt Master Enable flag
-
+    bool halt_bug_active = false; // Flag to track HALT bug state
+    
     // Helper for computing instruction timing
     uint8_t get_instruction_cycles(const Instructions::Instruction* instr, bool branch_taken = false);
     
     // Helper to check conditions for conditional instructions
     bool checkCondition(Instructions::CondType cond);
+
+    // Debug counter to track executed instructions
+    uint64_t debug_instruction_count;
 };

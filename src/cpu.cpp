@@ -3,6 +3,7 @@
 #include "memory.hpp"
 #include <stdio.h>
 #include <SDL2/SDL.h>
+#include <iostream>
 
 CPU::CPU(MemoryBus& mem) : memory(mem) {
     // Initialize registers to their power-up values
@@ -16,26 +17,78 @@ CPU::CPU(MemoryBus& mem) : memory(mem) {
 }
 
 void CPU::tick() {
-    // If we have pending cycles from current instruction, just decrement and return
-    if (pending_cycles > 0) {
-        pending_cycles--;
+    // If CPU is stopped, do nothing
+    if (stopped) {
         cycles++;
         return;
     }
-
-    // Only execute a new instruction if we're not halted or stopped
-    if (!halted && !stopped) {
-        fetch_instruction();
-        fetch_adress();
-        execute();
-        
-        // Calculate how many cycles this instruction takes
-        pending_cycles = get_instruction_cycles(current_instruction) - 1; // Subtract 1 because we're counting this cycle
-        cycles++;
-    } else {
-        // When halted or stopped, we still consume a cycle
-        cycles++;
+    
+    // Process interrupts
+    bool interrupt_handled = handleInterrupts();
+    
+    // If an interrupt was handled, we've already processed cycles
+    if (interrupt_handled) {
+        return;
     }
+    
+    // If halted, just increase cycles and return
+    if (halted) {
+        cycles++;
+        return;
+    }
+    
+    // If no pending instruction, fetch a new one
+    if (pending_cycles == 0) {
+        // Debug: Print info at specific addresses that are important for VRAM activity
+        if (registers.pc == 0x0100) {
+            std::cout << "CPU TRACE: Starting execution at entry point 0x0100" << std::endl;
+        }
+        else if (registers.pc == 0x0150) {
+            std::cout << "CPU TRACE: Finished boot sequence, jumping to actual game code" << std::endl;
+        }
+        // Add more breakpoints for Tetris-specific locations
+        else if (registers.pc == 0x028D || registers.pc == 0x0290) {
+            // Common entry points for Tetris VRAM initialization
+            std::cout << "CPU TRACE: At VRAM init location: 0x" << std::hex << registers.pc 
+                      << " AF=" << registers.af << " BC=" << registers.bc 
+                      << " DE=" << registers.de << " HL=" << registers.hl << std::dec << std::endl;
+        }
+        // Add general instruction trace every 100,000 instructions
+        else if (debug_instruction_count % 100000 == 0) {
+            std::cout << "CPU Status: PC=0x" << std::hex << registers.pc 
+                      << " Executed " << std::dec << debug_instruction_count << " instructions" 
+                      << " Cycles=" << cycles << std::endl;
+        }
+
+        if (halt_bug_active) {
+            // HALT bug: PC is not incremented for the first fetch after HALT
+            halt_bug_active = false;
+            current_opcode = memory.read(registers.pc);
+            
+            // But the next opcode will be fetched from PC+1
+            // This is what makes it a "bug"
+        } else {
+            // Normal instruction fetch
+            current_opcode = memory.read(registers.pc++);
+        }
+
+        debug_instruction_count++;
+        
+        // Get the instruction details from the opcode
+        current_instruction = &instructions.get(current_opcode);
+        
+        // Fetch any instruction data needed based on addressing mode
+        fetch_adress();
+        
+        // Execute the instruction
+        execute();
+    } else {
+        // Consume a pending cycle
+        pending_cycles--;
+    }
+    
+    // Increment total cycle count
+    cycles++;
 }
 
 void CPU::fetch_instruction(){
@@ -88,48 +141,48 @@ void CPU::fetch_adress(){
 
 void CPU::execute() {
     // Debug section start
-    printf("Executing: 0x%02X (%s) at PC: 0x%04X | ", 
-           current_opcode, 
-           Instructions::get_type_name(current_instruction->type).c_str(),
-           registers.pc);
+    // printf("Executing: 0x%02X (%s) at PC: 0x%04X | ", 
+    //        current_opcode, 
+    //        Instructions::get_type_name(current_instruction->type).c_str(),
+    //        registers.pc);
     
     // Print addressing mode and registers involved
-    printf("Mode: %d | ", static_cast<int>(current_instruction->addr_mode));
+    // printf("Mode: %d | ", static_cast<int>(current_instruction->addr_mode));
     
     if (current_instruction->reg1 != Instructions::RegType::NONE) {
-        printf("Reg1: %s ", Instructions::get_reg_name(current_instruction->reg1).c_str());
+        // printf("Reg1: %s ", Instructions::get_reg_name(current_instruction->reg1).c_str());
     }
     
     if (current_instruction->reg2 != Instructions::RegType::NONE) {
-        printf("Reg2: %s ", Instructions::get_reg_name(current_instruction->reg2).c_str());
+        // printf("Reg2: %s ", Instructions::get_reg_name(current_instruction->reg2).c_str());
     }
     
     // Print immediate value if applicable
     if (current_instruction->addr_mode == Instructions::AddrMode::R_D8 || 
         current_instruction->addr_mode == Instructions::AddrMode::D8 ||
         current_instruction->addr_mode == Instructions::AddrMode::MR_D8) {
-        printf("| Imm: 0x%02X ", current_instruction_data.immediate_value & 0xFF);
+        // printf("| Imm: 0x%02X ", current_instruction_data.immediate_value & 0xFF);
     } else if (current_instruction->addr_mode == Instructions::AddrMode::R_D16 || 
                current_instruction->addr_mode == Instructions::AddrMode::D16 ||
                current_instruction->addr_mode == Instructions::AddrMode::D16_R) {
-        printf("| Imm: 0x%04X ", current_instruction_data.immediate_value);
+        // printf("| Imm: 0x%04X ", current_instruction_data.immediate_value);
     }
     
     // Print register values
-    printf("\n  Registers: A:0x%02X F:0x%02X B:0x%02X C:0x%02X D:0x%02X E:0x%02X H:0x%02X L:0x%02X SP:0x%04X",
-           registers.a, registers.f, registers.b, registers.c, 
-           registers.d, registers.e, registers.h, registers.l, registers.sp);
+    // printf("\n  Registers: A:0x%02X F:0x%02X B:0x%02X C:0x%02X D:0x%02X E:0x%02X H:0x%02X L:0x%02X SP:0x%04X",
+    //        registers.a, registers.f, registers.b, registers.c, 
+    //        registers.d, registers.e, registers.h, registers.l, registers.sp);
     
     // Print flags
-    printf("\n  Flags: Z:%d N:%d H:%d C:%d", 
-           getFlag(FLAG_Z) ? 1 : 0, 
-           getFlag(FLAG_N) ? 1 : 0, 
-           getFlag(FLAG_H) ? 1 : 0, 
-           getFlag(FLAG_C) ? 1 : 0);
+    // printf("\n  Flags: Z:%d N:%d H:%d C:%d", 
+    //        getFlag(FLAG_Z) ? 1 : 0, 
+    //        getFlag(FLAG_N) ? 1 : 0, 
+    //        getFlag(FLAG_H) ? 1 : 0, 
+    //        getFlag(FLAG_C) ? 1 : 0);
     
     // Print 16-bit register pairs
-    printf("\n  Pairs: AF:0x%04X BC:0x%04X DE:0x%04X HL:0x%04X\n", 
-           registers.af, registers.bc, registers.de, registers.hl);
+    // printf("\n  Pairs: AF:0x%04X BC:0x%04X DE:0x%04X HL:0x%04X\n", 
+    //        registers.af, registers.bc, registers.de, registers.hl);
     
     //Debug section end
     bool branch_taken = false; // Track if branch instructions actually branch
@@ -333,8 +386,8 @@ void CPU::execute() {
             break;
 
         default:
-            printf("Unimplemented instruction: %s\n", 
-                   Instructions::get_type_name(current_instruction->type).c_str());
+            // printf("Unimplemented instruction: %s\n", 
+            //        Instructions::get_type_name(current_instruction->type).c_str());
             break;
     }
     
@@ -352,105 +405,143 @@ uint8_t CPU::get_instruction_cycles(const Instructions::Instruction* instr, bool
     return instr->cycles;
 }
 
-bool CPU::executeJP() {
-    bool branch_taken = true;
-    bool condition_satisfied = true;
-    
-    // Check condition if this is a conditional jump
-    if (current_instruction->cond != Instructions::CondType::NONE) {
-        condition_satisfied = checkCondition(current_instruction->cond);
+bool CPU::handleInterrupts() {
+    // If IME is disabled, interrupts are not processed
+    if (!ime) {
+        return false;
     }
     
-    if (condition_satisfied) {
-        if (current_instruction->addr_mode == Instructions::AddrMode::R) {
-            // Jump to address in register (only HL is valid here)
-            registers.pc = registers.hl;
-        } else {
-            // Jump to immediate address
-            registers.pc = current_instruction_data.immediate_value;
-        }
-    } else {
-        branch_taken = false;
+    // Read interrupt flags (IF) and interrupt enable register (IE)
+    uint8_t if_reg = memory.read(0xFF0F);
+    uint8_t ie_reg = memory.read(0xFFFF);
+    
+    // Mask enabled interrupts with requested interrupts
+    uint8_t active_interrupts = if_reg & ie_reg & 0x1F;
+    
+    // If no interrupts are active, return false
+    if (active_interrupts == 0) {
+        return false;
     }
     
-    return branch_taken;
-}
-
-bool CPU::executeJR() {
-    bool branch_taken = true;
-    bool condition_satisfied = true;
+    // Exit HALT mode if any interrupt is requested (even if disabled)
+    halted = false;
     
-    // Check condition if this is a conditional jump
-    if (current_instruction->cond != Instructions::CondType::NONE) {
-        condition_satisfied = checkCondition(current_instruction->cond);
-    }
+    // Process each interrupt in priority order
+    // Priority: VBlank (0) > LCD STAT (1) > Timer (2) > Serial (3) > Joypad (4)
     
-    if (condition_satisfied) {
-        // Relative jump uses signed 8-bit offset
-        int8_t offset = static_cast<int8_t>(current_instruction_data.immediate_value & 0xFF);
-        registers.pc += offset;
-    } else {
-        branch_taken = false;
-    }
-    
-    return branch_taken;
-}
-
-bool CPU::executeCALL() {
-    bool branch_taken = true;
-    bool condition_satisfied = true;
-    
-    // Check condition if this is a conditional call
-    if (current_instruction->cond != Instructions::CondType::NONE) {
-        condition_satisfied = checkCondition(current_instruction->cond);
-    }
-    
-    if (condition_satisfied) {
-        // Push current PC to stack
-        registers.sp -= 2;
-        memory.write16(registers.sp, registers.pc);
+    // Process VBlank interrupt (bit 0)
+    if (active_interrupts & 0x01) {
+        ime = false;  // Disable interrupts while handling one
         
-        // Jump to call address
-        registers.pc = current_instruction_data.immediate_value;
-    } else {
-        branch_taken = false;
+        // Clear VBlank interrupt flag
+        if_reg &= ~0x01;
+        memory.write(0xFF0F, if_reg);
+        
+        // Push PC to stack
+        memory.write(--registers.sp, registers.pc >> 8);
+        memory.write(--registers.sp, registers.pc & 0xFF);
+        
+        // Jump to interrupt handler
+        registers.pc = 0x0040;  // VBlank handler address
+        
+        cycles += 12;  // Interrupt takes 12 cycles
+        return true;
     }
     
-    return branch_taken;
+    // Process LCD STAT interrupt (bit 1)
+    if (active_interrupts & 0x02) {
+        ime = false;
+        
+        // Clear LCD STAT interrupt flag
+        if_reg &= ~0x02;
+        memory.write(0xFF0F, if_reg);
+        
+        // Push PC to stack
+        memory.write(--registers.sp, registers.pc >> 8);
+        memory.write(--registers.sp, registers.pc & 0xFF);
+        
+        // Jump to interrupt handler
+        registers.pc = 0x0048;  // LCD STAT handler address
+        
+        cycles += 12;
+        return true;
+    }
+    
+    // Process Timer interrupt (bit 2)
+    if (active_interrupts & 0x04) {
+        ime = false;
+        
+        // Clear Timer interrupt flag
+        if_reg &= ~0x04;
+        memory.write(0xFF0F, if_reg);
+        
+        // Push PC to stack
+        memory.write(--registers.sp, registers.pc >> 8);
+        memory.write(--registers.sp, registers.pc & 0xFF);
+        
+        // Jump to interrupt handler
+        registers.pc = 0x0050;  // Timer handler address
+        
+        cycles += 12;
+        return true;
+    }
+    
+    // Process Serial interrupt (bit 3)
+    if (active_interrupts & 0x08) {
+        ime = false;
+        
+        // Clear Serial interrupt flag
+        if_reg &= ~0x08;
+        memory.write(0xFF0F, if_reg);
+        
+        // Push PC to stack
+        memory.write(--registers.sp, registers.pc >> 8);
+        memory.write(--registers.sp, registers.pc & 0xFF);
+        
+        // Jump to interrupt handler
+        registers.pc = 0x0058;  // Serial handler address
+        
+        cycles += 12;
+        return true;
+    }
+    
+    // Process Joypad interrupt (bit 4)
+    if (active_interrupts & 0x10) {
+        ime = false;
+        
+        // Clear Joypad interrupt flag
+        if_reg &= ~0x10;
+        memory.write(0xFF0F, if_reg);
+        
+        // Push PC to stack
+        memory.write(--registers.sp, registers.pc >> 8);
+        memory.write(--registers.sp, registers.pc & 0xFF);
+        
+        // Jump to interrupt handler
+        registers.pc = 0x0060;  // Joypad handler address
+        
+        cycles += 12;
+        return true;
+    }
+    
+    return false;
 }
 
-bool CPU::executeRET() {
-    bool branch_taken = true;
-    bool condition_satisfied = true;
+// Update the reset method to initialize registers correctly
+void CPU::reset() {
+    // Initialize registers to post-boot values for DMG
+    registers.af = 0x01B0;  // A=0x01, F=0xB0 (Z flag set)
+    registers.bc = 0x0013;  // B=0x00, C=0x13
+    registers.de = 0x00D8;  // D=0x00, E=0xD8
+    registers.hl = 0x014D;  // H=0x01, L=0x4D
+    registers.pc = 0x0100;  // PC=0x0100 (entry point)
+    registers.sp = 0xFFFE;  // SP=0xFFFE
     
-    // Check condition if this is a conditional return
-    if (current_instruction->cond != Instructions::CondType::NONE) {
-        condition_satisfied = checkCondition(current_instruction->cond);
-    }
+    // Enable interrupts by default
+    ime = true;
+    halted = false;
+    stopped = false;
     
-    if (condition_satisfied) {
-        // Pop return address from stack
-        registers.pc = memory.read16(registers.sp);
-        registers.sp += 2;
-    } else {
-        branch_taken = false;
-    }
-    
-    return branch_taken;
-}
-
-// Helper to check conditions for conditional instructions
-bool CPU::checkCondition(Instructions::CondType cond) {
-    switch (cond) {
-        case Instructions::CondType::NZ:
-            return !getFlag(FLAG_Z);
-        case Instructions::CondType::Z:
-            return getFlag(FLAG_Z);
-        case Instructions::CondType::NC:
-            return !getFlag(FLAG_C);
-        case Instructions::CondType::C:
-            return getFlag(FLAG_C);
-        default:
-            return true;
-    }
+    // Reset debug counter
+    debug_instruction_count = 0;
 }

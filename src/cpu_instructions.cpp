@@ -361,7 +361,7 @@ void CPU::executeXOR() {
     setFlag(FLAG_C, false);  // Carry is always reset
 }
 
-void CPU::executeJP() {
+bool CPU::executeJP() {
     // Jump to address
     bool shouldJump = true;
     
@@ -396,9 +396,11 @@ void CPU::executeJP() {
             registers.pc = current_instruction_data.immediate_value;
         }
     }
+    
+    return shouldJump;
 }
 
-void CPU::executeJR() {
+bool CPU::executeJR() {
     // Jump relative (PC += signed immediate)
     bool shouldJump = true;
     
@@ -429,9 +431,11 @@ void CPU::executeJR() {
         int8_t offset = static_cast<int8_t>(current_instruction_data.immediate_value & 0xFF);
         registers.pc += offset;
     }
+    
+    return shouldJump;
 }
 
-void CPU::executeCALL() {
+bool CPU::executeCALL() {
     // Call subroutine
     bool shouldCall = true;
     
@@ -467,9 +471,11 @@ void CPU::executeCALL() {
         // Jump to call address
         registers.pc = current_instruction_data.immediate_value;
     }
+    
+    return shouldCall;
 }
 
-void CPU::executeRET() {
+bool CPU::executeRET() {
     // Return from subroutine
     bool shouldReturn = true;
     
@@ -503,6 +509,8 @@ void CPU::executeRET() {
         registers.pc = (high_byte << 8) | low_byte;
         registers.sp += 2;
     }
+    
+    return shouldReturn;
 }
 
 void CPU::executePUSH() {
